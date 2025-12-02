@@ -6,11 +6,17 @@ import PdfPagePreview from "../../common/PdfPagePreview";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-const RotatePages = ({ file }) => {
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://48wc3410yf.execute-api.us-east-1.amazonaws.com";
+
+const RotatePages = ({ file, documentId, sessionId }) => {
     const [numPages, setNumPages] = useState(0);
     const [pages, setPages] = useState([]);
     const [thumbs, setThumbs] = useState([]);
     const [rotations, setRotations] = useState({});
+    const [saving, setSaving] = useState(false);
+    const [saveStatus, setSaveStatus] = useState(""); // NEW → shows "Saved!"
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
     /* Responsive toggle */
@@ -20,7 +26,7 @@ const RotatePages = ({ file }) => {
         return () => window.removeEventListener("resize", handleResize);
     }, []);
 
-    /* Load PDF + generate thumbnails */
+    /* Load PDF + thumbs */
     const onDocumentLoadSuccess = async ({ numPages }) => {
         setNumPages(numPages);
 
@@ -43,29 +49,52 @@ const RotatePages = ({ file }) => {
             canvas.height = viewport.height;
 
             await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-
             thumbList.push(canvas.toDataURL());
         }
 
         setThumbs(thumbList);
     };
 
-    /* Rotate handler */
     const handleRotate = (pageNum) => {
         setRotations((prev) => ({
             ...prev,
             [pageNum]: ((prev[pageNum] || 0) + 90) % 360,
         }));
     };
-    const handleSave = () => {
-        const pageOrder = pages.map((p) => p.number);
+
+    // -----------------------------------------
+    // 🔥 SAVE EDITED DOCUMENT TO S3
+    // -----------------------------------------
+    const handleSave = async () => {
+        setSaving(true);
+        setSaveStatus("");
+
+        const pageOrder = pages.map(p => p.number);
 
         const rotationMap = {};
-        pages.forEach((p) => {
+        pages.forEach(p => {
             rotationMap[p.number] = rotations[p.number] || 0;
         });
 
-        saveUpdatedPdf(file, pageOrder, rotationMap);
+        const result = await saveUpdatedPdf(
+            file,
+            pageOrder,
+            rotationMap,
+            documentId,
+            sessionId
+        );
+
+        setSaving(false);
+
+        if (result.success) {
+            setSaveStatus("Saved!");
+
+            setTimeout(() => {
+                setSaveStatus("");
+            }, 1500);
+        } else {
+            setSaveStatus("Failed");
+        }
     };
 
 
@@ -92,7 +121,7 @@ const RotatePages = ({ file }) => {
                                         isMobile={isMobile}
                                         enableDrag={false}
                                         showDelete={false}
-                                        showRotate={true}    // ✔ Show rotate icon
+                                        showRotate={true}
                                         onRotate={handleRotate}
                                         rotation={rotations[page.number] || 0}
                                     />
@@ -102,7 +131,13 @@ const RotatePages = ({ file }) => {
                     </div>
 
                     <div className="actions">
-                        <button className="save-btn" onClick={handleSave}>Save Rotated PDF</button>
+                        <button className="save-btn" onClick={handleSave} disabled={saving}>
+                            {saving ? "Saving…" : "Save Rotated PDF"}
+                        </button>
+
+                        {saveStatus && (
+                            <span className="save-status">{saveStatus}</span>
+                        )}
                     </div>
                 </>
             )}

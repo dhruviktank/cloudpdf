@@ -2,19 +2,15 @@ import React, { useState, useRef, useEffect } from "react";
 import { GlobalWorkerOptions } from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import ProgressBar from "../../common/ProgressBar";
-import { getSessionId } from "../../../utils/session";
-import { uploadBufferToS3 } from "../../../utils/s3";
 
 GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-const sessionId = getSessionId();
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   "https://48wc3410yf.execute-api.us-east-1.amazonaws.com";
 
-export default function CompressPdf({ file }) {
+export default function CompressPdf({ file, documentId }) {
   const [status, setStatus] = useState("idle");
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [downloadUrl, setDownloadUrl] = useState(null);
 
   const previewCanvasRef = useRef(null);
@@ -36,14 +32,12 @@ export default function CompressPdf({ file }) {
     const container = previewContainerRef.current;
 
     const viewport = page.getViewport({ scale: 1 });
-
     const scale = Math.min(
       (container.clientWidth || 400) / viewport.width,
       (container.clientHeight || 500) / viewport.height
     );
 
     const scaled = page.getViewport({ scale });
-
     canvas.width = scaled.width;
     canvas.height = scaled.height;
 
@@ -55,67 +49,25 @@ export default function CompressPdf({ file }) {
   };
 
   // -----------------------
-  // Upload PDF to S3
-  // -----------------------
-  async function uploadWithProgress(data, filename) {
-    return await uploadBufferToS3(
-      API_BASE,
-      sessionId,
-      data,
-      filename,
-      (p) => setUploadProgress(p)
-    );
-  }
-
-  // -----------------------
-  // Check if original PDF already uploaded
-  // -----------------------
-  const checkAlreadyUploaded = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/fetch?type=original`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-session-id": sessionId,
-        },
-      });
-
-      if (res.status === 200) return true;   // File exists
-      return false;                          // 404 → not uploaded
-    } catch (err) {
-      return false;
-    }
-  };
-
-  // -----------------------
-  // Compress PDF
+  // Call compress Lambda
   // -----------------------
   const compressPdf = async () => {
-    if (!file) return;
+    if (!documentId) {
+      alert("Missing documentId");
+      return;
+    }
 
-    setStatus("uploading");
-    setUploadProgress(0);
+    setStatus("processing");
 
     try {
-      const alreadyUploaded = await checkAlreadyUploaded();
-
-      // Upload only if not uploaded before
-      if (!alreadyUploaded) {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        await uploadWithProgress(bytes, file.name);
-      }
-
-      // Call compress Lambda
       const compressRes = await fetch(`${API_BASE}/compress`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-session-id": sessionId,
-        },
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId }),
       });
 
       const data = await compressRes.json();
-
+      console.log("Compress response:", data);
       if (data.status === "success") {
         setDownloadUrl(data.output_file);
         setStatus("done");
@@ -129,16 +81,14 @@ export default function CompressPdf({ file }) {
   };
 
   // -----------------------
-  // Download compressed PDF
+  // Download compressed file
   // -----------------------
   const downloadCompressedPdf = async () => {
     try {
-      const res = await fetch(`${API_BASE}/fetch?type=compressed`, {
+      const res = await fetch(`${API_BASE}/document/fetch?type=compressed&documentId=${documentId}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-session-id": sessionId,
-        },
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId, "action": "fetchDocument", type: "compressed" }),
       });
 
       const { url } = await res.json();
@@ -147,10 +97,8 @@ export default function CompressPdf({ file }) {
 
       const blob = new Blob([arrayBuffer], { type: "application/pdf" });
       const link = document.createElement("a");
-
       link.href = URL.createObjectURL(blob);
       link.download = "compressed.pdf";
-
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -159,9 +107,6 @@ export default function CompressPdf({ file }) {
     }
   };
 
-  // -----------------------
-  // UI Rendering
-  // -----------------------
   if (!file)
     return (
       <div className="compress-empty">
@@ -172,10 +117,8 @@ export default function CompressPdf({ file }) {
 
   return (
     <div className="compress-wrapper">
-
       <div ref={previewContainerRef} className="compress-preview">
         <canvas ref={previewCanvasRef} className="compress-canvas" />
-
         <div className="file-info">
           <div className="file-name">{file.name}</div>
           <div className="file-size">{formatSize(file.size)}</div>
@@ -185,17 +128,13 @@ export default function CompressPdf({ file }) {
       <div className="compress-controls">
         <button
           onClick={compressPdf}
-          disabled={status === "uploading"}
+          disabled={status === "processing"}
           className="btn-primary"
         >
           Compress
         </button>
 
-        {status === "uploading" && (
-          <ProgressBar value={uploadProgress} label="Uploading..." />
-        )}
-
-        {status === "done" && downloadUrl && (
+        {status === "done" && (
           <button onClick={downloadCompressedPdf} className="btn-primary">
             Download Compressed PDF
           </button>

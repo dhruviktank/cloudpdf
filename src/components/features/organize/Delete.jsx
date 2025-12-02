@@ -1,13 +1,15 @@
-import React, { lazy, useEffect, useState } from "react";
+import React, { lazy, useEffect, useState, Suspense } from "react";
 import { Document, pdfjs } from "react-pdf";
-import { Suspense } from "react";
 import { saveUpdatedPdf } from "../../../utils/pdf.js";
+
 const PdfPagePreview = lazy(() => import("../../common/PdfPagePreview.jsx"));
 
-const DeletePages = ({ file }) => {
+const DeletePages = ({ file, documentId, sessionId }) => {
   const [numPages, setNumPages] = useState(0);
   const [pages, setPages] = useState([]);
   const [thumbs, setThumbs] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   /* Responsive toggle */
@@ -21,9 +23,7 @@ const DeletePages = ({ file }) => {
   const onDocumentLoadSuccess = async ({ numPages }) => {
     setNumPages(numPages);
 
-    const initial = Array.from({ length: numPages }, (_, i) => ({
-      number: i + 1,
-    }));
+    const initial = Array.from({ length: numPages }, (_, i) => ({ number: i + 1 }));
     setPages(initial);
 
     const loadingTask = pdfjs.getDocument(URL.createObjectURL(file));
@@ -40,7 +40,6 @@ const DeletePages = ({ file }) => {
       canvas.height = viewport.height;
 
       await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-
       thumbList.push(canvas.toDataURL());
     }
 
@@ -52,11 +51,33 @@ const DeletePages = ({ file }) => {
     setPages((prev) => prev.filter((p) => p.number !== pageNum));
   };
 
-  const handleSave = () => {
-    const pageOrder = pages.map((p) => p.number); // remaining pages
-    saveUpdatedPdf(file, pageOrder); // no rotation for delete screen
-  };
+  /* Save edited PDF + trigger download (handled inside saveUpdatedPdf) */
+  const handleSave = async () => {
+    if (!pages || pages.length === 0) return;
 
+    const pageOrder = pages.map((p) => p.number);
+
+    setSaving(true);
+    setSaveStatus("Saving…");
+
+    try {
+      const result = await saveUpdatedPdf(file, pageOrder, {}, documentId, sessionId);
+
+      if (result.success) {
+        setSaveStatus("Saved! Download should start shortly…");
+      } else {
+        setSaveStatus("Save failed");
+        console.error("Save error:", result.error);
+      }
+    } catch (err) {
+      setSaveStatus("Save failed");
+      console.error("Unexpected error saving PDF:", err);
+    } finally {
+      setSaving(false);
+      // Reset status after 2 seconds
+      setTimeout(() => setSaveStatus(""), 2000);
+    }
+  };
 
   return (
     <div className="delete-wrapper">
@@ -79,9 +100,8 @@ const DeletePages = ({ file }) => {
                       index={index}
                       thumb={thumbs[page.number - 1]}
                       isMobile={isMobile}
-
-                      enableDrag={false}     // ❌ No dragging
-                      showDelete={true}       // ✔ Show delete button
+                      enableDrag={false}
+                      showDelete={true}
                       showRotate={false}
                       onDelete={handleDelete}
                     />
@@ -92,7 +112,10 @@ const DeletePages = ({ file }) => {
           </div>
 
           <div className="actions">
-            <button className="save-btn" onClick={handleSave}>Save PDF</button>
+            <button className="save-btn" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : "Save PDF"}
+            </button>
+            {saveStatus && <span style={{ marginLeft: 12 }}>{saveStatus}</span>}
           </div>
         </>
       )}
