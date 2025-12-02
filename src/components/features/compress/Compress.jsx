@@ -24,6 +24,9 @@ export default function CompressPdf({ file }) {
     if (file) renderPreview(file);
   }, [file]);
 
+  // -----------------------
+  // Render PDF Preview
+  // -----------------------
   const renderPreview = async (file) => {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -51,6 +54,9 @@ export default function CompressPdf({ file }) {
     await page.render({ canvasContext: ctx, viewport: scaled }).promise;
   };
 
+  // -----------------------
+  // Upload PDF to S3
+  // -----------------------
   async function uploadWithProgress(data, filename) {
     return await uploadBufferToS3(
       API_BASE,
@@ -61,6 +67,29 @@ export default function CompressPdf({ file }) {
     );
   }
 
+  // -----------------------
+  // Check if original PDF already uploaded
+  // -----------------------
+  const checkAlreadyUploaded = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/fetch?type=original`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-session-id": sessionId,
+        },
+      });
+
+      if (res.status === 200) return true;   // File exists
+      return false;                          // 404 → not uploaded
+    } catch (err) {
+      return false;
+    }
+  };
+
+  // -----------------------
+  // Compress PDF
+  // -----------------------
   const compressPdf = async () => {
     if (!file) return;
 
@@ -68,9 +97,15 @@ export default function CompressPdf({ file }) {
     setUploadProgress(0);
 
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      await uploadWithProgress(bytes, file.name);
+      const alreadyUploaded = await checkAlreadyUploaded();
 
+      // Upload only if not uploaded before
+      if (!alreadyUploaded) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        await uploadWithProgress(bytes, file.name);
+      }
+
+      // Call compress Lambda
       const compressRes = await fetch(`${API_BASE}/compress`, {
         method: "POST",
         headers: {
@@ -93,6 +128,9 @@ export default function CompressPdf({ file }) {
     }
   };
 
+  // -----------------------
+  // Download compressed PDF
+  // -----------------------
   const downloadCompressedPdf = async () => {
     try {
       const res = await fetch(`${API_BASE}/fetch?type=compressed`, {
@@ -121,6 +159,9 @@ export default function CompressPdf({ file }) {
     }
   };
 
+  // -----------------------
+  // UI Rendering
+  // -----------------------
   if (!file)
     return (
       <div className="compress-empty">
