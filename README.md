@@ -1,30 +1,20 @@
-# CloudPDF (Vite + React Boilerplate)
-
-This is a minimal starter for the CloudPDF project using Vite + React.
-
-## What you get
-
-- Vite config with React plugin
-- Basic `App` with a PDF uploader placeholder
-- `package.json` with scripts: `dev`, `build`, `preview`
-
-## Install & run (Windows cmd.exe)
-
-Open a terminal in `c:\\Users\\Dell\\Desktop\\CloudComputing\\cloudpdf` and run:
-
-```bat
 npm install
 npm run dev
-```
 
-Then open http://localhost:5173 if the browser doesn't open automatically.
+# Update S3 Code
+aws s3 sync ./dist s3://cloudpdf-app/ --delete
 
-## Next steps / suggestions
+# Clear CloudFront Cache
+aws cloudfront create-invalidation \
+--distribution-id E1NQ0XB79BWFH0 \
+--paths "/*"
 
-- Add a PDF rendering lib (e.g. `pdfjs-dist`, `react-pdf`) to view uploaded PDFs in-browser.
-- Add backend storage or a serverless upload handler for cloud storage.
-- Add a linter/formatter and CI pipeline.
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 740831361169.dkr.ecr.us-east-1.amazonaws.com
+docker buildx build --platform linux/amd64 --output=type=docker -t cloudpdf-processor .
+docker tag cloudpdf-processor:latest 740831361169.dkr.ecr.us-east-1.amazonaws.com/cloudpdf-processor:latest
+docker push 740831361169.dkr.ecr.us-east-1.amazonaws.com/cloudpdf-processor:latest
 
-## Notes
-
-Run `npm install` to fetch dependencies before running dev server. If you want TypeScript, I can add a TS conversion.
+aws lambda invoke \
+  --function-name cloudpdf-processor \
+  --payload '{"action":"compress","file_key":"upload-1762600935163.pdf"}' \
+  output.json

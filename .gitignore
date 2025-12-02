@@ -2,3 +2,6 @@ node_modules/
 dist/
 .env
 .vscode/
+lambda/
+.cache/
+.DS_Store

@@ -1,0 +1,86 @@
+/* container variations */
+.page-list-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/* when dragging we can lock wrapping to avoid layout jumps */
+.page-list-grid.dragging {
+  flex-wrap: nowrap !important;
+}
+
+.page-list-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/* each page */
+.page-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e4e6ec;
+  transition: box-shadow 0.12s ease;
+  touch-action: none; /* critical for mobile dragging */
+}
+
+/* grid item size (desktop thumbnails) */
+.page-row {
+  width: 150px; /* controls grid column size */
+  flex-direction: column; /* thumbnail on top, info below for desktop grid appearance */
+  text-align: center;
+}
+.thumb {
+  width: 80%;
+  // height: 90px;
+  object-fit: cover;
+  // border-radius: 8px;
+  // margin-bottom: 8px;
+  border: 1px solid black;
+  margin: 18px 0;
+}
+/* override for mobile list rows */
+@media (max-width: 768px) {
+  .page-row {
+    width: 100%;
+    flex-direction: row; /* handle | thumb | info | actions */
+    // align-items: center;
+    justify-content: space-between;
+  }
+
+  .thumb {
+    width: 40px;
+    height: auto;
+    margin: 5px;
+  }
+}
+
+/* drag handle and visuals */
+.drag-handle {
+  cursor: grab;
+  font-size: 18px;
+  padding: 6px;
+}
+.page-row.dragging {
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-actions button {
+  background: none;
+  border: none;
+  font-size: 18px;
+}
