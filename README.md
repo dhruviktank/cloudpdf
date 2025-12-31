@@ -1,20 +1,27 @@
+# React Frontend
+A minimal, production-ready React application with sensible defaults for development, testing, and deployment.
+
+## Getting started
+1. Install dependencies:
+```
 npm install
-npm run dev
+```
+2. Start development server:
+```
+npm start
+```
+3. Build for production:
+```
+npm run build
+```
+## Deployment
+Build the app and deploy the contents of the build output: S3 + CloudFront.
 
-# Update S3 Code
-aws s3 sync ./dist s3://cloudpdf-app/ --delete
-
-# Clear CloudFront Cache
-aws cloudfront create-invalidation \
---distribution-id E1NQ0XB79BWFH0 \
---paths "/*"
-
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 740831361169.dkr.ecr.us-east-1.amazonaws.com
-docker buildx build --platform linux/amd64 --output=type=docker -t cloudpdf-processor .
-docker tag cloudpdf-processor:latest 740831361169.dkr.ecr.us-east-1.amazonaws.com/cloudpdf-processor:latest
-docker push 740831361169.dkr.ecr.us-east-1.amazonaws.com/cloudpdf-processor:latest
-
-aws lambda invoke \
-  --function-name cloudpdf-processor \
-  --payload '{"action":"compress","file_key":"upload-1762600935163.pdf"}' \
-  output.json
+| Feature               | Location              | Execution                 |
+| --------------------- | --------------------- | ------------------------- |
+| Upload PDF            | Home/EditorPage       | Backend (S3 + Lambda)     |
+| View PDF              | Editor                | Client                    |
+| Rotate/Delete/Reorder | Editor                | Client-side using pdf-lib |
+| Compress              | Sidebar → Lambda      | Server-side               |
+| Recent Files          | RecentFiles Component | Backend (DynamoDB)        |
+| Download PDF          | Topbar                | S3 Presigned URL          |

@@ -17,7 +17,7 @@ export default function CompressPdf({ file, documentId }) {
   const previewContainerRef = useRef(null);
 
   useEffect(() => {
-    if (file) renderPreview(file);
+    if (file && file.type == 'application/pdf') renderPreview(file);
   }, [file]);
 
   // -----------------------
@@ -67,7 +67,6 @@ export default function CompressPdf({ file, documentId }) {
       });
 
       const data = await compressRes.json();
-      console.log("Compress response:", data);
       if (data.status === "success") {
         setDownloadUrl(data.output_file);
         setStatus("done");
@@ -112,6 +111,14 @@ export default function CompressPdf({ file, documentId }) {
       <div className="compress-empty">
         <h3>No PDF selected</h3>
         <p>Please upload a PDF first.</p>
+      </div>
+    );
+  
+  if (file.type !== "application/pdf")
+    return (
+      <div className="compress-empty">
+        <h3>Invalid file type</h3>
+        <p>Please upload a PDF file.</p>
       </div>
     );
 

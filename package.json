@@ -15,6 +15,7 @@
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.296",
     "react": "^18.2.0",
+    "react-advanced-cropper": "^0.20.1",
     "react-dom": "^18.2.0",
     "react-pdf": "^10.2.0"
   },

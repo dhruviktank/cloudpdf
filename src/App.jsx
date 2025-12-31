@@ -4,23 +4,23 @@ import Sidebar from './components/Sidebar'
 import PdfEditor from './components/PdfEditor'
 
 export default function App() {
-  const [activeFeature, setActiveFeature] = useState({ group: 'organize', feature: 'reorder' })
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)       // ⬅ NEW
+  const [activeFeature, setActiveFeature] = useState({ label: 'Compress PDF', id: 'compress' })
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)       
 
   return (
     <div className="app-root">
       <Sidebar 
-        onSelectFeature={(group, feature) => setActiveFeature({ group, feature })}
-        isOpen={isSidebarOpen}                    // ⬅ CONTROLLED
-        setIsOpen={setIsSidebarOpen}              // ⬅ PASSED DOWN
+        onSelectFeature={(feature) => setActiveFeature(feature)}
+        isOpen={isSidebarOpen}                    
+        setIsOpen={setIsSidebarOpen}              
         activeFeature={activeFeature}
       />
 
       <div className="main-area">
         <Topbar 
           activeFeature={activeFeature}
-          isSidebarOpen={isSidebarOpen}           // ⬅ Topbar knows sidebar state
-          setIsSidebarOpen={setIsSidebarOpen}     // ⬅ Topbar controls it
+          isSidebarOpen={isSidebarOpen}           
+          setIsSidebarOpen={setIsSidebarOpen}     
         />
 
         <main className="content">

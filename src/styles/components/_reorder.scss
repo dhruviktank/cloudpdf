@@ -28,7 +28,7 @@
   border-radius: 12px;
   border: 1px solid #e4e6ec;
   transition: box-shadow 0.12s ease;
-  touch-action: none; /* critical for mobile dragging */
+  touch-action: pan-y; /* critical for mobile dragging */
 }
 
 /* grid item size (desktop thumbnails) */

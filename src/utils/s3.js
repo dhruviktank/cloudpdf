@@ -1,39 +1,95 @@
 // S3 upload helpers: presign + upload with progress
-
-export async function getPresignedUrl(apiBase, filename, sessionId) {
-  const res = await fetch(`${apiBase}/upload`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(sessionId ? { 'x-session-id': sessionId } : {})
-    },
-    body: JSON.stringify({ filename })
-  })
-  if (!res.ok) throw new Error('Presign URL failed')
-  const { url, key } = await res.json()
-  return { url, key }
+const fileType = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
 }
 
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://48wc3410yf.execute-api.us-east-1.amazonaws.com";
+
+export async function getPresignedUrl(filename, sessionId) {
+  try {
+    const res = await fetch(`${API_BASE}/document/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-id': sessionId,
+      },
+      body: JSON.stringify({
+        action: 'createDocument',
+        filename,
+        sessionId,
+        contentType: fileType[filename.split('.').pop().toLowerCase()] || 'application/pdf',
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      throw new Error(`Presign URL failed (${res.status}): ${errorText}`);
+    }
+
+    const json = await res.json().catch(() => {
+      throw new Error('Invalid JSON from presign API');
+    });
+    const { uploadUrl, documentId } = json;
+
+    if (!uploadUrl || !documentId) {
+      throw new Error('Presign API response missing uploadUrl or documentId');
+    }
+
+    return { uploadUrl, documentId };
+  } catch (err) {
+    console.error('getPresignedUrl error:', err);
+    throw err; // rethrow for caller
+  }
+}
 export function uploadToPresigned(url, data, onProgress) {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('PUT', url)
-    // Intentionally do not set Content-Type; browser will set it for File/Blob
-    xhr.upload.onprogress = (e) => {
-      if (onProgress && e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100))
-      }
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`S3 upload failed: ${xhr.status}`));
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(data);
+    } catch (err) {
+      reject(err);
     }
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`S3 upload failed: ${xhr.status}`)))
-    xhr.onerror = () => reject(new Error('Network error during upload'))
-
-    const body = data instanceof Blob ? data : new Blob([data], { type: 'application/pdf' })
-    xhr.send(body)
-  })
+  });
 }
+export async function uploadBufferToS3(
+  sessionId,
+  data,
+  filename,
+  onProgress
+) {
+  try {
+    const { uploadUrl, documentId } = await getPresignedUrl(
+      filename,
+      sessionId
+    );
 
-export async function uploadBufferToS3(apiBase, sessionId, data, filename, onProgress) {
-  const { url, key } = await getPresignedUrl(apiBase, filename, sessionId)
-  await uploadToPresigned(url, data, onProgress)
-  return key
+    await uploadToPresigned(uploadUrl, data, onProgress);
+
+    return documentId;
+  } catch (err) {
+    console.error('uploadBufferToS3 error:', err);
+    throw new Error(
+      err.message || 'Failed to upload file to S3'
+    );
+  }
 }

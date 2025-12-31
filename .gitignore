@@ -5,3 +5,4 @@ dist/
 lambda/
 .cache/
 .DS_Store
+*.md

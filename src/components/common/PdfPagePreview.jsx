@@ -33,7 +33,7 @@ const PdfPagePreview = ({
             transform: CSS.Transform.toString(sortable.transform),
             transition: sortable.transition,
             zIndex: sortable.isDragging ? 3 : 1,
-            touchAction: "none",
+            touchAction: "pan-y",
         };
     }
 
@@ -46,7 +46,9 @@ const PdfPagePreview = ({
 
             {/* Drag Handle */}
             {enableDrag && (
-                <div className="drag-handle" {...attributes} {...listeners}>
+                <div className="drag-handle" 
+                style={{ touchAction: "none" }}
+                {...attributes} {...listeners}>
                     <GripHorizontal />
                 </div>
             )}
